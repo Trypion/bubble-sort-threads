@@ -6,101 +6,127 @@
 
 // #define IMPRIME
 
-struct bubble_args {
-  int *array;
-  unsigned int size;
-};
+typedef struct
+{
+  int **arrays;
+  int array_size;
+  int start;
+  int end;
+} SortParams;
 
-void imprime(int **array, int num_arrays, int size){
-  int i,j;
-  for(i=0; i < num_arrays; i++){
-     for(j=0; j < size; j++){
-        printf("%d ", array[i][j]);
-     }
-     printf("\n");
-  }
-}
-
-void *bubble(void *arg){
-  struct bubble_args *args = (struct bubble_args *)arg;
-  int *array = args->array;
-  unsigned int size = args->size;
-  int i,j;
-  int temp;
-  for(i = 0; i < size-1; i++){       
-    for(j = 0; j < size-i-1; j++){          
-      if(array[j] > array[j+1]){               
-        temp = array[j];
-        array[j] = array[j+1];
-        array[j+1] = temp;
-      }
+void imprime(int **array, int num_arrays, int size)
+{
+  int i, j;
+  for (i = 0; i < num_arrays; i++)
+  {
+    for (j = 0; j < size; j++)
+    {
+      printf("%d ", array[i][j]);
     }
+    printf("\n");
   }
-  pthread_exit(NULL);
 }
 
-int main(int argc, char **argv){
-  int **elementos,n,tam,i,j;    
+void bubble_sort(int **arrays, int start, int end, int size);
+void *sort_thread(void *arg);
+
+int main(int argc, char *argv[])
+{
+  if (argc != 4)
+  {
+    printf("Usage: %s <number of arrays> <array size> <number of threads>\n", argv[0]);
+    return 1;
+  }
+
   struct timeval t1, t2;
   double t_total;
 
-  if(argc!=3){
-   printf("Digite %s Num_arrays Num_elementos\n", argv[0]);
-   exit(0);
+  int num_arrays = atoi(argv[1]);
+  int array_size = atoi(argv[2]);
+  int num_threads = atoi(argv[3]);
+
+  int **arrays = (int **)malloc(num_arrays * sizeof(int *));
+  for (int i = 0; i < num_arrays; i++)
+  {
+    arrays[i] = (int *)malloc(array_size * sizeof(int));
+    for (int j = 0; j < array_size; j++)
+    {
+      arrays[i][j] = rand() % 100;
+    }
   }
 
-  n = atoi(argv[1]);
-  tam = atoi(argv[2]);
-
-  pthread_t threads[n];
-
-  /*Aloca memória para os vetores*/
-  elementos=(int**)malloc(n*sizeof(int*));
-  for(i = 0; i < n; i++)
-    elementos[i]=(int*)malloc(tam*sizeof(int));
-
-  /*Popula os arrays com elementos aleatorios entre 0 e 1000*/
-  for(i = 0; i < n; i++) {
-    for (j = 0; j < tam; j++)
-      elementos[i][j] = rand() % 1000;    
-  }
-
-  #ifdef IMPRIME
+#ifdef IMPRIME
   printf("Antes da ordenacao!\n");
-  imprime(elementos, n, tam);
+  imprime(arrays, num_arrays, array_size);
   printf("\n");
-  #endif
+#endif
 
-  struct bubble_args *args = malloc(n * sizeof(struct bubble_args));
+  pthread_t *threads = (pthread_t *)malloc(num_threads * sizeof(pthread_t));
+  SortParams *params = (SortParams *)malloc(num_threads * sizeof(SortParams));
+
+  int arrays_per_thread = num_arrays / num_threads;
+
   gettimeofday(&t1, NULL);
-  for(i = 0; i < n; i++){
-    args[i].array = elementos[i];
-    args[i].size = tam;
-    pthread_create(&threads[i], NULL, bubble, &args[i]);    
+  for (int i = 0; i < num_threads; i++)
+  {
+    params[i].arrays = arrays;
+    params[i].array_size = array_size;
+    params[i].start = i * arrays_per_thread;
+    params[i].end = (i == num_threads - 1) ? num_arrays : params[i].start + arrays_per_thread;
+    pthread_create(&threads[i], NULL, sort_thread, &params[i]);
   }
 
-  for(i = 0; i < n; i++){
+  for (int i = 0; i < num_threads; i++)
+  {
     pthread_join(threads[i], NULL);
   }
 
   gettimeofday(&t2, NULL);
 
-
-  #ifdef IMPRIME
+#ifdef IMPRIME
   printf("Depois da ordenacao!\n");
-  imprime(elementos, n, tam);
+  imprime(arrays, num_arrays, array_size);
   printf("\n");
-  #endif
+#endif
 
-  /*Libera memoria alocada*/
-  for(i=0;i<n;i++){
-		free(elementos[i]);
-	}
-	free(elementos);
+  for (int i = 0; i < num_arrays; i++)
+  {
+    free(arrays[i]);
+  }
+  free(arrays);
 
-  t_total = (t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec)/1000000.0;
-  printf("%i; %f; %i\n", n, t_total, tam);
+  free(threads);
+  free(params);
+
+  t_total = (t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0;
+  printf("%i; %f; %i; %i\n", num_arrays, t_total, array_size, num_threads);
 
   return 0;
 }
 
+void *sort_thread(void *arg)
+{
+  SortParams *params = (SortParams *)arg;
+  bubble_sort(params->arrays, params->start, params->end, params->array_size);
+  return NULL;
+}
+
+void bubble_sort(int **arrays, int start, int end, int size)
+{
+  for (int i = start; i < end; i++)
+  {
+    int *array = arrays[i];
+    for (int j = 0; j < size - 1; j++)
+    {
+      for (int k = 0; k < size - j - 1; k++)
+      {
+        if (array[k] > array[k + 1])
+        {
+          int temp = array[k];
+          array[k] = array[k + 1];
+          array[k + 1] = temp;
+        }
+      }
+    }
+  }
+}
